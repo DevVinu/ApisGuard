@@ -132,7 +132,7 @@ EOF
 
 ### 5.2 Create `init.sql`
 
-This initializes all 6 tables (`users`, `telemetry` including `temp_top`/`temp_middle`/`temp_bottom`, `actuators`, `actuator_logs`, `alerts`, `settings`) and default seed rows matching `backend/`:
+This initializes all 6 tables (`users`, `telemetry` for DHT22, 3x DS18B20 probes, 2x IR bee counters, MPU6050, HX711 5kg weight, NEO-6M GPS, and INA219 battery metrics, `actuators` for Entrance Gate Servo & Type 3 Syrup Pump, `actuator_logs`, `alerts`, `settings`) and default seed rows matching `backend/`:
 
 ```bash
 cat << 'EOF' > ~/apisguard/init.sql
@@ -149,22 +149,24 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS telemetry (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    temp_brood DECIMAL(4, 2),
-    temp_ambient DECIMAL(4, 2),
-    humidity_internal DECIMAL(4, 2),
-    humidity_ambient DECIMAL(4, 2),
+    temperature DECIMAL(4, 2),
+    humidity DECIMAL(4, 2),
     temp_top DECIMAL(4, 2),
     temp_middle DECIMAL(4, 2),
     temp_bottom DECIMAL(4, 2),
     weight_kg DECIMAL(6, 2),
-    sound_peak_hz INT,
-    sound_db DECIMAL(4, 1),
+    bees_in INT,
+    bees_out INT,
+    tilt_deg DECIMAL(5, 2),
+    theft_alert BOOLEAN DEFAULT FALSE,
+    fall_detected BOOLEAN DEFAULT FALSE,
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
     altitude_meters DECIMAL(6, 2),
     satellites_connected INT,
     battery_pct INT,
-    battery_voltage DECIMAL(3, 2),
+    battery_voltage DECIMAL(5, 2),
+    battery_current_ma DECIMAL(7, 2),
     wifi_rssi INT,
     recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_recorded_at (recorded_at DESC)
@@ -172,7 +174,7 @@ CREATE TABLE IF NOT EXISTS telemetry (
 
 CREATE TABLE IF NOT EXISTS actuators (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    type ENUM('entrance_gate', 'buzzer', 'syrup_dispenser') NOT NULL UNIQUE,
+    type ENUM('entrance_gate', 'syrup_dispenser') NOT NULL UNIQUE,
     name VARCHAR(50) NOT NULL,
     current_state VARCHAR(50) DEFAULT 'OFF',
     is_auto_mode BOOLEAN DEFAULT FALSE,
@@ -180,14 +182,13 @@ CREATE TABLE IF NOT EXISTS actuators (
 );
 
 INSERT INTO actuators (type, name, current_state, is_auto_mode) VALUES
-('entrance_gate', 'Entrance Slider Servo', 'OPEN', FALSE),
-('syrup_dispenser', 'Sugar Syrup Dispenser', 'OFF', TRUE),
-('buzzer', 'Theft / Predator Alarm', 'OFF', FALSE)
+('entrance_gate', 'Entrance Gate Servo', 'OPEN', FALSE),
+('syrup_dispenser', 'Type 3 Sugar Syrup Pump', 'OFF', TRUE)
 ON DUPLICATE KEY UPDATE id=id;
 
 CREATE TABLE IF NOT EXISTS actuator_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    actuator_type ENUM('entrance_gate', 'buzzer', 'syrup_dispenser') NOT NULL,
+    actuator_type ENUM('entrance_gate', 'syrup_dispenser') NOT NULL,
     triggered_by ENUM('manual_web', 'auto_rule') NOT NULL,
     command_details VARCHAR(255) NOT NULL,
     status ENUM('sent', 'acknowledged', 'failed') DEFAULT 'sent',
@@ -196,7 +197,7 @@ CREATE TABLE IF NOT EXISTS actuator_logs (
 
 CREATE TABLE IF NOT EXISTS alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    alert_type ENUM('HIGH_TEMP', 'LOW_TEMP', 'SWARM_RISK', 'RAPID_WEIGHT_LOSS', 'GEOFENCE_BREACH', 'LOW_BATTERY') NOT NULL,
+    alert_type ENUM('HIGH_TEMP', 'LOW_TEMP', 'THEFT_TAMPER', 'HIVE_FALL', 'RAPID_WEIGHT_LOSS', 'HARVEST_READY', 'GEOFENCE_BREACH', 'LOW_BATTERY') NOT NULL,
     severity ENUM('info', 'warning', 'critical') DEFAULT 'warning',
     message TEXT NOT NULL,
     is_resolved BOOLEAN DEFAULT FALSE,
@@ -214,7 +215,8 @@ INSERT INTO settings (setting_key, setting_value) VALUES
 ('home_longitude', '79.861244'),
 ('geofence_radius_meters', '50'),
 ('max_temp_threshold', '36.00'),
-('rapid_weight_loss_kg', '1.50'),
+('rapid_weight_loss_kg', '0.50'),
+('harvest_weight_kg', '4.20'),
 ('scale_tare_offset', '0.00')
 ON DUPLICATE KEY UPDATE setting_key=setting_key;
 EOF
@@ -368,7 +370,7 @@ cd c:\project\ApisGuard\backend
 npx tsx src/mockPublisher.ts
 ```
 
-This publishes simulated sensor + GPS + 3-probe thermal data to your AWS Mosquitto broker -> your local backend receives it, stores it in AWS MySQL, evaluates alerts/geofence rules, and streams live Socket.io updates.
+This publishes simulated `DHT22`, `3x DS18B20` probes, `2x IR` bee traffic, `MPU6050` motion, `HX711 5kg` weight, `INA219` battery, and `NEO-6M` GPS telemetry to your AWS Mosquitto broker -> your local backend receives it, stores it in AWS MySQL, evaluates alerts/geofence/harvest rules, and streams live Socket.io updates.
 
 ### 7.3 Configure & Run Local `frontend/`
 

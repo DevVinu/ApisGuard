@@ -4,12 +4,14 @@ import { HOME_COORDINATES } from './data/mockHiveData';
 import { useActuatorControl } from './hooks/useActuatorControl';
 import { useHistoricalData } from './hooks/useHistoricalData';
 import { useLiveTelemetry } from './hooks/useLiveTelemetry';
+import { useTheme } from './hooks/useTheme';
 import { ChartsPage } from './pages/ChartsPage';
 import { ControlsPage } from './pages/ControlsPage';
 import { LogsPage } from './pages/LogsPage';
 import { OverviewPage } from './pages/OverviewPage';
 
 export function App() {
+  const { theme, setTheme } = useTheme();
   const { telemetry, alerts, isBackendConnected, dismissAlert } = useLiveTelemetry();
   const {
     actuators,
@@ -23,11 +25,13 @@ export function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-black text-zinc-100 flex flex-col">
+      <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-100 flex flex-col transition-colors">
         <Navbar
           device={telemetry.device}
           activeAlertsCount={alerts.length}
           isBackendConnected={isBackendConnected}
+          theme={theme}
+          onChangeTheme={setTheme}
         />
 
         <main className="max-w-5xl w-full mx-auto px-4 pt-4 pb-24 md:pb-8 flex-1">
@@ -65,6 +69,7 @@ export function App() {
                   history={history}
                   thermalProbes={telemetry.metrics.thermalProbes}
                   isLoading={isHistoryLoading}
+                  theme={theme}
                 />
               }
             />

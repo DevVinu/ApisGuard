@@ -17,11 +17,13 @@ export const SyrupControl: React.FC<SyrupControlProps> = ({
   const isAuto = syrup.mode === 'AUTO';
 
   return (
-    <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-3">
+    <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Icon icon="lucide:beaker" className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-medium text-white">Sugar Syrup Dispenser</span>
+          <Icon icon="lucide:beaker" className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+          <span className="text-sm font-medium text-zinc-900 dark:text-white">
+            Sugar Syrup Dispenser
+          </span>
         </div>
 
         <button
@@ -29,8 +31,8 @@ export const SyrupControl: React.FC<SyrupControlProps> = ({
           onClick={() => onToggleMode(isAuto ? 'MANUAL' : 'AUTO')}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
             isAuto
-              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-              : 'bg-black text-zinc-400 border-zinc-800'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+              : 'bg-white text-zinc-600 border-zinc-200 dark:bg-black dark:text-zinc-400 dark:border-zinc-800'
           }`}
         >
           <Icon

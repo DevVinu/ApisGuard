@@ -20,7 +20,9 @@ export const ControlsPage: React.FC<ControlsPageProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-base sm:text-lg font-semibold text-white">Controls &amp; Automation</h1>
+        <h1 className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-white">
+          Controls &amp; Automation
+        </h1>
         <span className="text-xs text-zinc-500">Remote Actuators</span>
       </div>
 

@@ -4,7 +4,7 @@ This plan breaks the [APISGUARD_SPECIFICATION.md](./APISGUARD_SPECIFICATION.md) 
 
 ## Scope
 
-- **In**: Single-hive, black & simple mobile-first dashboard (`Vite + React + TypeScript + Tailwind CSS` + `react-router-dom`), Iconify icons (`@iconify/react`, no emojis), Google Maps GPS + geofencing, `Node.js/Express` + `Socket.io` backend, `Mosquitto` MQTT broker, `MySQL 8` via Docker Compose, and `ESP32` sensor/actuator firmware (entrance gate, sugar syrup dispenser, and buzzer).
+- **In**: Single-hive, black & simple mobile-first dashboard (`Vite + React + TypeScript + Tailwind CSS` + `react-router-dom`), Iconify icons (`@iconify/react`, no emojis), Google Maps GPS + geofencing, `Node.js/Express` + `Socket.io` backend, `Mosquitto` MQTT broker, `MySQL 8` via Docker Compose, and `ESP32` sensor/actuator firmware (entrance gate servo and Type 3 sugar syrup pump).
 - **Out**: Multi-hive fleet management, multi-page navigation, and unrelated authentication/billing features not defined in the specification.
 
 ---
@@ -99,10 +99,11 @@ This plan breaks the [APISGUARD_SPECIFICATION.md](./APISGUARD_SPECIFICATION.md) 
 - [x] **2.2** Implement the MySQL connection pool and MQTT client subscribing to `apisguard/telemetry`, `apisguard/status`, `apisguard/actuators/ack`, and `apisguard/alerts`.
 - [x] **2.3** Persist incoming `apisguard/telemetry` payloads (including 3-level `thermalProbes`: `top`, `middle`, `bottom`) into `telemetry` and emit live updates over `Socket.io`.
 - [x] **2.4** Implement server-side automation & alert rules driven by `settings` and `actuators`:
-  - Brood temp `> 36.00°C` (`max_temp_threshold`): trigger `HIGH_TEMP` alert.
+  - DHT22 temp `> 36.00°C` (`max_temp_threshold`): trigger `HIGH_TEMP` alert.
   - GPS distance `> 50 m` (`geofence_radius_meters` from `home_latitude`/`home_longitude`): trigger `GEOFENCE_BREACH` alert.
-  - Weight drop `>= 1.50 kg` (`rapid_weight_loss_kg`): trigger `RAPID_WEIGHT_LOSS` alert and auto-dispense sugar syrup when `syrup_dispenser` `is_auto_mode = TRUE`.
-  - Swarm acoustic risk (`soundPeakHz > 400`) and low battery alerts (`SWARM_RISK`, `LOW_BATTERY`).
+  - MPU6050 theft/fall triggers (`THEFT_TAMPER`, `HIVE_FALL`).
+  - Weight drop `>= 0.50 kg` (`rapid_weight_loss_kg` on 5 kg HX711 scale): trigger `RAPID_WEIGHT_LOSS` alert and auto-dispense sugar syrup via Type 3 pump when `syrup_dispenser` `is_auto_mode = TRUE`; weight `>= 4.20 kg` (`harvest_weight_kg`): trigger `HARVEST_READY`.
+  - Low battery alert (`LOW_BATTERY` from INA219 sensor).
 - [x] **2.5** Expose REST endpoints for initial dashboard load: `GET /api/telemetry/latest`, `GET /api/telemetry/history?hours=24`, `GET /api/actuators`, `POST /api/actuators/command` (publishes to `apisguard/actuators/set` and writes to `actuator_logs`), `GET /api/alerts`, and `PATCH /api/alerts/:id/resolve`.
 - [ ] **2.6** **Verify**: Run a Node/Python mock publisher (`src/mockPublisher.ts`) sending sample JSON to `apisguard/telemetry` and confirm rows insert into MySQL, alerts trigger, and `apisguard/actuators/set` messages publish properly (pending AWS MySQL + Mosquitto broker setup).
 
@@ -116,8 +117,8 @@ This plan breaks the [APISGUARD_SPECIFICATION.md](./APISGUARD_SPECIFICATION.md) 
 - [x] **3.2** Create TypeScript types (`src/types/telemetry.ts`, `src/types/actuator.ts`), utilities (`src/utils/geofence.ts`, `src/utils/formatters.ts`), and API/socket clients (`src/services/api.ts`, `src/services/socket.ts`).
 - [x] **3.3** Implement data hooks (`useLiveTelemetry.ts`, `useActuatorControl.ts`, `useHistoricalData.ts`).
 - [x] **3.4** Build `Navbar.tsx` as a sticky top navigation bar + mobile bottom navigation bar (`Overview`, `Controls`, `Charts`, `Logs`) with live connection status, battery %, Wi-Fi RSSI, and Iconify icons.
-- [x] **3.5** Build `AlertBanner.tsx` and `MetricCardsGrid.tsx` (`MetricCard.tsx`, `BroodTempCard.tsx`, `WeightCard.tsx`, `SwarmAcousticCard.tsx`) as a 2x2 mobile / 4-column desktop KPI strip on `OverviewPage.tsx`.
-- [x] **3.6** Build `ActuatorControlPanel.tsx` (`ControlsPage.tsx`) with `GateButtons.tsx`, `SyrupControl.tsx`, and `AlarmButton.tsx`.
+- [x] **3.5** Build `AlertBanner.tsx` and `MetricCardsGrid.tsx` (`MetricCard.tsx`, `BroodTempCard.tsx`, `WeightCard.tsx`, `BeeTrafficCard.tsx`, `MotionSecurityCard.tsx`) as a 2x2 mobile / 4-column desktop KPI strip on `OverviewPage.tsx`.
+- [x] **3.6** Build `ActuatorControlPanel.tsx` (`ControlsPage.tsx`) with `GateButtons.tsx` and `SyrupControl.tsx`.
 - [x] **3.7** Build `HiveGoogleMap.tsx` (`MapContainer.tsx`, `HiveMarker.tsx`, `GeofenceCircle.tsx`) at the top of `OverviewPage.tsx`, displaying dynamic `N/S` and `E/W` coordinates and geofence status badge.
 - [x] **3.8** Build `AnalyticsCharts.tsx` (`ChartsPage.tsx`) with `ClimateLineChart.tsx` (dual-axis Temp & Humidity), `HiveHeatMap2D.tsx` (3-level Top/Mid/Bot 2D heat map), and `WeightAreaChart.tsx` behind tabs, plus `ActivityLogModal.tsx` (`LogsPage.tsx`).
 - [x] **3.9** Assemble multi-page `App.tsx` with `react-router-dom` and configure `public/manifest.json` for mobile PWA support.
@@ -131,13 +132,14 @@ This plan breaks the [APISGUARD_SPECIFICATION.md](./APISGUARD_SPECIFICATION.md) 
 
 - [ ] **4.1** Bench-wire and power-test components on a breadboard/PCB per Section 3.2 GPIO pinout:
   - `NEO-6M` GPS on `UART2` (`GPIO 16/17`)
-  - `SHT31-D` on `I2C` (`GPIO 21/22`), `DHT22` on `GPIO 4`, and `3x DS18B20` thermal probes (Top/Mid/Bot) on `GPIO 13` (1-Wire bus)
-  - `HX711` load cells on `GPIO 18/19`
-  - `INMP441` I2S mic on `GPIO 32/25/33`
-  - `MG996R` Gate Servo (`GPIO 27`), `5V` Syrup Pump MOSFET/Relay (`GPIO 23`), Active Buzzer (`GPIO 14`), Battery Voltage Divider ADC (`GPIO 35`).
-- [ ] **4.2** Calibrate the `HX711` load cells using known weights and record `scale_tare_offset`; verify `GPIO 35` battery voltage reading against a multimeter.
-- [ ] **4.3** Write ESP32 firmware (Arduino/PlatformIO) to connect to Wi-Fi and Mosquitto, read sensors (including 3-level `DS18B20` Top/Mid/Bot probes), compute FFT peak frequency from `INMP441`, parse NMEA sentences from `NEO-6M`, and publish `apisguard/telemetry` and `apisguard/status`.
-- [ ] **4.4** Implement `apisguard/actuators/set` command handler on the ESP32 for servo positions (`OPEN`, `GUARD_MODE`, `CLOSED`), timed sugar syrup pump activation (`durationSec`), and buzzer trigger, publishing confirmations to `apisguard/actuators/ack`.
+  - `MPU6050` (theft/fall IMU) & `INA219` (battery current/voltage) on shared `I2C` (`GPIO 21/22`)
+  - `DHT22` on `GPIO 4`, and `3x DS18B20` thermal probes (Top/Mid/Bot) on `GPIO 13` (1-Wire bus)
+  - `HX711` + `5kg` load cell on `GPIO 18/19`
+  - `2x IR` bee counter sensors on `GPIO 32/33`
+  - Entrance Gate Servo (`GPIO 27`), `Type 3` ultra-quiet submersible syrup pump MOSFET/Relay (`GPIO 23`).
+- [ ] **4.2** Calibrate the `HX711` 5kg load cell using known weights, record `scale_tare_offset`, and verify `INA219` voltage/current readings against a multimeter.
+- [ ] **4.3** Write ESP32 firmware (Arduino/PlatformIO) to connect to Wi-Fi and Mosquitto, read sensors (`DHT22`, `3x DS18B20`, `2x IR`, `MPU6050`, `HX711`, `INA219`, `NEO-6M`), and publish `apisguard/telemetry` and `apisguard/status`.
+- [ ] **4.4** Implement `apisguard/actuators/set` command handler on the ESP32 for servo positions (`OPEN`, `GUARD_MODE`, `CLOSED`) and timed `Type 3` sugar syrup pump activation (`durationSec`), publishing confirmations to `apisguard/actuators/ack`.
 - [ ] **4.5** **Verify**: Confirm real hardware telemetry arrives in MySQL and appears live on the dashboard, and confirm physical actuators respond to dashboard controls.
 
 ---
@@ -150,7 +152,7 @@ This plan breaks the [APISGUARD_SPECIFICATION.md](./APISGUARD_SPECIFICATION.md) 
   - Brood temp `> 36°C` triggers `HIGH_TEMP` alert banner.
   - Moving GPS coordinates `> 50 m` from home base flags `GEOFENCE BREACH!` on the map and logs an alert.
   - Simulated rapid weight drop triggers `RAPID_WEIGHT_LOSS` alert and activates the sugar syrup dispenser.
-  - Manual controls (Gate 3-state buttons, Syrup manual dispense, Buzzer alarm) receive ESP32 `ack` updates.
+  - Manual controls (Gate 3-state buttons and Type 3 Syrup manual/auto dispense) receive ESP32 `ack` updates.
 - [ ] **5.2** Configure Nginx on the AWS Ubuntu instance to serve the built `frontend/dist` static files on port `80` (and `443` with Certbot TLS if using a domain) and reverse-proxy `/api` and `/socket.io` to `http://127.0.0.1:5000`.
 - [ ] **5.3** Harden production secrets in `.env` / `docker-compose.yml` (MySQL passwords, Mosquitto credentials, and HTTP referrer restrictions on `VITE_GOOGLE_MAPS_API_KEY`).
 - [ ] **5.4** Run `docker compose up -d --build` on the AWS Ubuntu server and verify the full dashboard on both mobile and desktop browsers.

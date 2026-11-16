@@ -20,10 +20,10 @@ export const ActuatorControlPanel: React.FC<ActuatorControlPanelProps> = ({
   onDispenseSyrup,
 }) => {
   return (
-    <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
+    <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3 transition-colors">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
-          <Icon icon="lucide:sliders-horizontal" className="w-4 h-4 text-amber-400" />
+        <h2 className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+          <Icon icon="lucide:sliders-horizontal" className="w-4 h-4 text-amber-500 dark:text-amber-400" />
           Actuator Controls
         </h2>
         {pendingAction && (

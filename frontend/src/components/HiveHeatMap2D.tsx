@@ -54,16 +54,18 @@ export const HiveHeatMap2D: React.FC<HiveHeatMap2DProps> = ({ currentProbes, his
   return (
     <div className="space-y-4">
       {/* Live 2D Vertical Hive Thermal Cross-Section */}
-      <div className="rounded-xl bg-black border border-zinc-800 p-3.5 space-y-2">
+      <div className="rounded-xl bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 p-3.5 space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-medium text-zinc-300">Live 3-Level Vertical Profile</span>
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">
+            Live 3-Level Vertical Profile
+          </span>
           <span className="text-zinc-500">
             Gradient: {(currentProbes.top - currentProbes.bottom).toFixed(1)} °C spread
           </span>
         </div>
 
         <div
-          className="rounded-xl overflow-hidden border border-zinc-800"
+          className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
           style={{
             background: `linear-gradient(180deg, ${getThermalColor(currentProbes.top)}33 0%, ${getThermalColor(
               currentProbes.middle
@@ -76,7 +78,7 @@ export const HiveHeatMap2D: React.FC<HiveHeatMap2DProps> = ({ currentProbes, his
               <div
                 key={lvl.key}
                 className={`flex items-center justify-between px-3.5 py-2.5 ${
-                  index < levels.length - 1 ? 'border-b border-zinc-800/70' : ''
+                  index < levels.length - 1 ? 'border-b border-zinc-200/80 dark:border-zinc-800/70' : ''
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -85,13 +87,17 @@ export const HiveHeatMap2D: React.FC<HiveHeatMap2DProps> = ({ currentProbes, his
                     style={{ backgroundColor: color }}
                   />
                   <div>
-                    <div className="text-xs font-semibold text-white">{lvl.name} Probe</div>
-                    <div className="text-[11px] text-zinc-400">{lvl.position}</div>
+                    <div className="text-xs font-semibold text-zinc-900 dark:text-white">
+                      {lvl.name} Probe
+                    </div>
+                    <div className="text-[11px] text-zinc-600 dark:text-zinc-400">
+                      {lvl.position}
+                    </div>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-white">
                     {lvl.liveTemp.toFixed(1)} °C
                   </div>
                   <div className="text-[11px]" style={{ color }}>
@@ -105,10 +111,12 @@ export const HiveHeatMap2D: React.FC<HiveHeatMap2DProps> = ({ currentProbes, his
       </div>
 
       {/* 24-Hour 2D Heat Map Matrix (3 Levels x Time) */}
-      <div className="rounded-xl bg-black border border-zinc-800 p-3.5 space-y-2.5">
+      <div className="rounded-xl bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 p-3.5 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-medium text-zinc-300">24-Hour 2D Heat Map (Top / Mid / Bot)</span>
-          <span className="text-[11px] text-zinc-400">
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">
+            24-Hour 2D Heat Map (Top / Mid / Bot)
+          </span>
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
             {selectedCell
               ? `${selectedCell.level} @ ${selectedCell.label}: ${selectedCell.temp.toFixed(1)} °C`
               : 'Tap or hover any cell for exact reading'}
@@ -119,7 +127,9 @@ export const HiveHeatMap2D: React.FC<HiveHeatMap2DProps> = ({ currentProbes, his
           <div className="min-w-[440px] space-y-1.5">
             {levels.map((lvl) => (
               <div key={lvl.key} className="grid grid-cols-[56px_1fr] items-center gap-2">
-                <span className="text-[11px] font-medium text-zinc-400">{lvl.name}</span>
+                <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
+                  {lvl.name}
+                </span>
                 <div
                   className="grid gap-1"
                   style={{ gridTemplateColumns: `repeat(${history.length}, minmax(0, 1fr))` }}

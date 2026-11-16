@@ -12,9 +12,12 @@ import type { HistoricalPoint } from '../types/telemetry';
 
 interface WeightAreaChartProps {
   data: HistoricalPoint[];
+  theme: 'dark' | 'light';
 }
 
-export const WeightAreaChart: React.FC<WeightAreaChartProps> = ({ data }) => {
+export const WeightAreaChart: React.FC<WeightAreaChartProps> = ({ data, theme }) => {
+  const isDark = theme === 'dark';
+
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -25,19 +28,23 @@ export const WeightAreaChart: React.FC<WeightAreaChartProps> = ({ data }) => {
               <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#71717a' }} minTickGap={24} />
+          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#27272a' : '#e4e4e7'} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11, fill: isDark ? '#71717a' : '#52525b' }}
+            minTickGap={24}
+          />
           <YAxis
             domain={['dataMin - 0.5', 'dataMax + 0.5']}
-            tick={{ fontSize: 11, fill: '#71717a' }}
+            tick={{ fontSize: 11, fill: isDark ? '#71717a' : '#52525b' }}
             unit=" kg"
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#09090b',
+              backgroundColor: isDark ? '#09090b' : '#ffffff',
               borderRadius: '0.75rem',
-              borderColor: '#27272a',
-              color: '#f4f4f5',
+              borderColor: isDark ? '#27272a' : '#e4e4e7',
+              color: isDark ? '#f4f4f5' : '#18181b',
               fontSize: '12px',
             }}
           />

@@ -97,7 +97,7 @@
 | :--- | :--- | :--- | :--- |
 | `apisguard/telemetry` | ESP32 | Backend | Combined sensor, GPS, and device metrics |
 | `apisguard/status` | ESP32 | Backend | Heartbeat, battery voltage, Wi-Fi RSSI |
-| `apisguard/actuators/set` | Web App $\rightarrow$ Backend | ESP32 | Control entrance gate, syrup dispenser, or alarm |
+| `apisguard/actuators/set` | Web App $\rightarrow$ Backend | ESP32 | Control entrance gate servo or Type 3 syrup pump |
 | `apisguard/actuators/ack` | ESP32 | Backend $\rightarrow$ Web | Actuator state confirmation |
 | `apisguard/alerts` | ESP32 / Backend | Web Dashboard | Immediate notifications (Geofence breach, Overheat) |
 
@@ -109,18 +109,21 @@
 {
   "timestamp": 1794762000,
   "metrics": {
-    "tempBrood": 34.8,
-    "tempAmbient": 27.5,
-    "humidityInternal": 58.2,
-    "humidityAmbient": 63.0,
+    "temperature": 34.8,
+    "humidity": 58.2,
     "thermalProbes": {
-      "top": 35.9,
-      "middle": 35.2,
-      "bottom": 33.4
+      "top": 35.6,
+      "middle": 34.9,
+      "bottom": 33.2
     },
-    "weightKg": 44.65,
-    "soundPeakHz": 195,
-    "soundDb": 41.5
+    "weightKg": 3.85,
+    "beesIn": 142,
+    "beesOut": 136,
+    "motion": {
+      "tiltDeg": 0.4,
+      "theftAlert": false,
+      "fallDetected": false
+    }
   },
   "location": {
     "latitude": 6.927079,
@@ -131,8 +134,8 @@
   },
   "device": {
     "batteryPct": 92,
-    "batteryVoltage": 4.12,
-    "solarCharging": true,
+    "batteryVoltage": 12.42,
+    "batteryCurrentMa": 215,
     "wifiRssi": -65
   }
 }
@@ -152,9 +155,6 @@
       "dispense": false,
       "durationSec": 5,
       "mode": "AUTO"
-    },
-    "buzzer": {
-      "trigger": false
     }
   }
 }
@@ -180,22 +180,24 @@ CREATE TABLE users (
 -- 2. Time-Series Telemetry (Sensors + GPS + Health)
 CREATE TABLE telemetry (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    temp_brood DECIMAL(4, 2),        -- Internal brood temp (°C)
-    temp_ambient DECIMAL(4, 2),      -- Outdoor temp (°C)
-    humidity_internal DECIMAL(4, 2), -- Internal humidity (%)
-    humidity_ambient DECIMAL(4, 2),  -- Outdoor humidity (%)
-    temp_top DECIMAL(4, 2),          -- Upper hive probe temp (°C)
-    temp_middle DECIMAL(4, 2),       -- Middle brood probe temp (°C)
-    temp_bottom DECIMAL(4, 2),       -- Lower hive probe temp (°C)
-    weight_kg DECIMAL(6, 2),         -- Total hive weight (kg)
-    sound_peak_hz INT,               -- Sound frequency (Hz)
-    sound_db DECIMAL(4, 1),          -- Sound level (dB)
-    latitude DECIMAL(10, 8),         -- GPS Latitude
-    longitude DECIMAL(11, 8),        -- GPS Longitude
-    altitude_meters DECIMAL(6, 2),   -- GPS Altitude
+    temperature DECIMAL(4, 2),       -- DHT22 temperature (°C)
+    humidity DECIMAL(4, 2),          -- DHT22 relative humidity (%)
+    temp_top DECIMAL(4, 2),          -- Upper DS18B20 probe temp (°C)
+    temp_middle DECIMAL(4, 2),       -- Middle DS18B20 probe temp (°C)
+    temp_bottom DECIMAL(4, 2),       -- Lower DS18B20 probe temp (°C)
+    weight_kg DECIMAL(6, 2),         -- HX711 + 5kg load cell weight (kg)
+    bees_in INT,                     -- IR sensor entering count
+    bees_out INT,                    -- IR sensor exiting count
+    tilt_deg DECIMAL(5, 2),          -- MPU6050 tilt angle (°)
+    theft_alert BOOLEAN DEFAULT FALSE,
+    fall_detected BOOLEAN DEFAULT FALSE,
+    latitude DECIMAL(10, 8),         -- NEO-6M GPS Latitude
+    longitude DECIMAL(11, 8),        -- NEO-6M GPS Longitude
+    altitude_meters DECIMAL(6, 2),   -- NEO-6M GPS Altitude
     satellites_connected INT,        -- GPS Fix quality
-    battery_pct INT,                 -- Battery percentage (0 - 100%)
-    battery_voltage DECIMAL(3, 2),   -- Battery voltage (V)
+    battery_pct INT,                 -- INA219 battery percentage (0 - 100%)
+    battery_voltage DECIMAL(5, 2),   -- INA219 battery voltage (V)
+    battery_current_ma DECIMAL(7, 2),-- INA219 current draw (mA)
     wifi_rssi INT,                   -- Signal strength (dBm)
     recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_recorded_at (recorded_at DESC)
@@ -204,7 +206,7 @@ CREATE TABLE telemetry (
 -- 3. Actuator States & Settings
 CREATE TABLE actuators (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    type ENUM('entrance_gate', 'buzzer', 'syrup_dispenser') NOT NULL UNIQUE,
+    type ENUM('entrance_gate', 'syrup_dispenser') NOT NULL UNIQUE,
     name VARCHAR(50) NOT NULL,
     current_state VARCHAR(50) DEFAULT 'OFF',
     is_auto_mode BOOLEAN DEFAULT FALSE,
@@ -213,15 +215,14 @@ CREATE TABLE actuators (
 
 -- Seed default actuators
 INSERT INTO actuators (type, name, current_state, is_auto_mode) VALUES
-('entrance_gate', 'Entrance Slider Servo', 'OPEN', FALSE),
-('syrup_dispenser', 'Sugar Syrup Dispenser', 'OFF', TRUE),
-('buzzer', 'Theft / Predator Alarm', 'OFF', FALSE)
+('entrance_gate', 'Entrance Gate Servo', 'OPEN', FALSE),
+('syrup_dispenser', 'Type 3 Sugar Syrup Pump', 'OFF', TRUE)
 ON DUPLICATE KEY UPDATE id=id;
 
 -- 4. Actuator Command History Log
 CREATE TABLE actuator_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    actuator_type ENUM('entrance_gate', 'buzzer', 'syrup_dispenser') NOT NULL,
+    actuator_type ENUM('entrance_gate', 'syrup_dispenser') NOT NULL,
     triggered_by ENUM('manual_web', 'auto_rule') NOT NULL,
     command_details VARCHAR(255) NOT NULL,
     status ENUM('sent', 'acknowledged', 'failed') DEFAULT 'sent',
@@ -231,7 +232,7 @@ CREATE TABLE actuator_logs (
 -- 5. Incidents and Alerts Table
 CREATE TABLE alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    alert_type ENUM('HIGH_TEMP', 'LOW_TEMP', 'SWARM_RISK', 'RAPID_WEIGHT_LOSS', 'GEOFENCE_BREACH', 'LOW_BATTERY') NOT NULL,
+    alert_type ENUM('HIGH_TEMP', 'LOW_TEMP', 'THEFT_TAMPER', 'HIVE_FALL', 'RAPID_WEIGHT_LOSS', 'HARVEST_READY', 'GEOFENCE_BREACH', 'LOW_BATTERY') NOT NULL,
     severity ENUM('info', 'warning', 'critical') DEFAULT 'warning',
     message TEXT NOT NULL,
     is_resolved BOOLEAN DEFAULT FALSE,
@@ -245,13 +246,14 @@ CREATE TABLE settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Seed initial GPS Home location and geofence threshold
+-- Seed initial GPS Home location and thresholds
 INSERT INTO settings (setting_key, setting_value) VALUES
 ('home_latitude', '6.927079'),
 ('home_longitude', '79.861244'),
-('geofence_radius_meters', '50'),        -- Alert if moved > 50 meters
+('geofence_radius_meters', '50'),
 ('max_temp_threshold', '36.00'),
-('rapid_weight_loss_kg', '1.50'),        -- Trigger alert & auto syrup dispense on sharp drop
+('rapid_weight_loss_kg', '0.50'),
+('harvest_weight_kg', '4.20'),
 ('scale_tare_offset', '0.00')
 ON DUPLICATE KEY UPDATE setting_key=setting_key;
 ```
@@ -349,13 +351,13 @@ frontend/
 │   │   ├── AlertBanner.tsx        # High-visibility banner for critical alerts
 │   │   ├── MetricCardsGrid.tsx    # Responsive grid of live sensor values
 │   │   │   ├── MetricCard.tsx     # Reusable card with progress/range indicator
-│   │   │   ├── BroodTempCard.tsx  # Highlights 34.5°C - 35.5°C health zone
-│   │   │   ├── WeightCard.tsx     # Current weight + net gain/loss today
-│   │   │   └── SwarmAcousticCard.tsx # Frequency needle/badge (<300Hz safe, >400Hz alert)
+│   │   │   ├── BroodTempCard.tsx  # DHT22 hive temperature & humidity
+│   │   │   ├── WeightCard.tsx     # 5kg HX711 scale + harvest-ready status
+│   │   │   ├── BeeTrafficCard.tsx # 2x IR sensors (bees entering / exiting)
+│   │   │   └── MotionSecurityCard.tsx # MPU6050 tilt, fall & theft guard
 │   │   ├── ActuatorControlPanel.tsx# Remote control module
 │   │   │   ├── GateButtons.tsx    # 3-state buttons (Open, Guard, Closed)
-│   │   │   ├── SyrupControl.tsx   # Manual syrup dispense + Auto-feed toggle
-│   │   │   └── AlarmButton.tsx    # Instant buzzer trigger button
+│   │   │   └── SyrupControl.tsx   # Type 3 pump manual dispense + Auto-feed toggle
 │   │   ├── HiveGoogleMap.tsx      # Google Maps component
 │   │   │   ├── MapContainer.tsx   # Interactive map with satellite toggle
 │   │   │   ├── HiveMarker.tsx     # Custom pin showing live coordinates
@@ -367,7 +369,7 @@ frontend/
 │   │   └── ActivityLogModal.tsx   # Filterable list of recent alerts & triggers
 │   ├── pages/
 │   │   ├── OverviewPage.tsx       # `/` — Alerts, HiveGoogleMap, KPI cards, quick status
-│   │   ├── ControlsPage.tsx       # `/controls` — Gate, Syrup Dispenser, Buzzer Alarm
+│   │   ├── ControlsPage.tsx       # `/controls` — Gate Servo & Type 3 Syrup Pump
 │   │   ├── ChartsPage.tsx         # `/charts` — 24h Temp/Humidity, 2D Heat Map, Weight
 │   │   └── LogsPage.tsx           # `/logs` — Active alerts & incident/actuator log
 │   ├── hooks/

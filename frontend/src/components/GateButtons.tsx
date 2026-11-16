@@ -20,11 +20,13 @@ const GATE_OPTIONS: Array<{
 
 export const GateButtons: React.FC<GateButtonsProps> = ({ gate, onSelect }) => {
   return (
-    <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-2.5">
+    <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-800 space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon icon="lucide:panel-bottom-close" className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-medium text-white">Entrance Gate Servo</span>
+          <Icon icon="lucide:panel-bottom-close" className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+          <span className="text-sm font-medium text-zinc-900 dark:text-white">
+            Entrance Gate Servo
+          </span>
         </div>
         <span className="text-xs text-zinc-500">Angle: {gate.angle}°</span>
       </div>
@@ -40,7 +42,7 @@ export const GateButtons: React.FC<GateButtonsProps> = ({ gate, onSelect }) => {
               className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl border text-xs font-medium transition-all ${
                 active
                   ? 'bg-amber-500 text-black border-amber-400 font-semibold'
-                  : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                  : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100 dark:bg-black dark:text-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:bg-zinc-900'
               }`}
             >
               <Icon icon={opt.icon} className="w-4 h-4 mb-1" />

@@ -14,14 +14,14 @@ export const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ logs }) => {
   const filteredLogs = filter === 'all' ? logs : logs.filter((item) => item.category === filter);
 
   return (
-    <section className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
+    <section className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3 transition-colors">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
-          <Icon icon="lucide:history" className="w-4 h-4 text-amber-400" />
+        <h2 className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+          <Icon icon="lucide:history" className="w-4 h-4 text-amber-500 dark:text-amber-400" />
           Incident &amp; Actuator Log
         </h2>
 
-        <div className="inline-flex rounded-xl bg-black border border-zinc-800 p-1 text-xs">
+        <div className="inline-flex rounded-xl bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 p-1 text-xs">
           {(['all', 'actuator', 'alert', 'system'] as CategoryFilter[]).map((key) => (
             <button
               key={key}
@@ -29,8 +29,8 @@ export const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ logs }) => {
               onClick={() => setFilter(key)}
               className={`px-2.5 py-1 rounded-lg capitalize font-medium transition-colors ${
                 filter === key
-                  ? 'bg-zinc-900 text-amber-400'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'bg-white text-amber-600 shadow-sm dark:shadow-none dark:bg-zinc-900 dark:text-amber-400'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
               }`}
             >
               {key}
@@ -42,7 +42,7 @@ export const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ logs }) => {
       {filteredLogs.length === 0 ? (
         <p className="py-6 text-center text-xs text-zinc-500">No entries in this category.</p>
       ) : (
-        <ul className="divide-y divide-zinc-800/80">
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
           {filteredLogs.map((entry) => (
             <li key={entry.id} className="py-3 flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -56,20 +56,20 @@ export const ActivityLogModal: React.FC<ActivityLogModalProps> = ({ logs }) => {
                   }
                   className={`w-4 h-4 shrink-0 ${
                     entry.category === 'alert'
-                      ? 'text-rose-400'
+                      ? 'text-rose-500 dark:text-rose-400'
                       : entry.category === 'actuator'
-                        ? 'text-amber-400'
-                        : 'text-emerald-400'
+                        ? 'text-amber-500 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
                   }`}
                 />
                 <span className="font-medium text-zinc-500 shrink-0">
                   {formatTimeShort(entry.timestamp)}
                 </span>
-                <span className="text-zinc-200 truncate">{entry.message}</span>
+                <span className="text-zinc-700 dark:text-zinc-200 truncate">{entry.message}</span>
               </div>
 
               {entry.status && (
-                <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 text-[11px] font-medium shrink-0">
+                <span className="px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 text-[11px] font-medium shrink-0">
                   {entry.status}
                 </span>
               )}
