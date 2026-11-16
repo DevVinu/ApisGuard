@@ -1,0 +1,49 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+
+# Build Outputs (Frontend & Backend)
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Logs & Runtime Diagnostics
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Docker, Mosquitto & Local Database Data
+mosquitto/data/
+mosquitto/log/
+mosquitto/config/passwd
+mysql_data/
+
+# ESP32 Firmware (PlatformIO / Arduino)
+.pio/
+firmware/.pio/
+firmware/.vscode/
+*.bin
+*.elf
+
+# Editor & OS Files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+Desktop.ini
