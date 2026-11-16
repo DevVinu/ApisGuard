@@ -1,49 +1,51 @@
-# ApisGuard — AWS Ubuntu Server Setup Guide (Option A)
+# ApisGuard — Complete AWS Hosting Guide (Frontend + Backend + MySQL + Mosquitto)
 
-This guide walks you through setting up the **AWS Ubuntu Free Tier** server running **MySQL 8.0** and **Eclipse Mosquitto (MQTT)** inside Docker, while running `backend/` and `frontend/` on your local PC.
+This single end-to-end guide walks you through hosting the **entire ApisGuard system** (`frontend/`, `backend/`, `MySQL 8.0`, and `Eclipse Mosquitto`) directly on an **AWS Ubuntu EC2** server.
 
-## Architecture Overview (Option A)
+---
+
+## Architecture Overview
 
 ```text
-+-----------------------+        MQTT (1883)        +------------------------------+
-|  ESP32 Smart Hive     | ------------------------> |  AWS EC2 (Ubuntu Free Tier)  |
-|  (Wi-Fi + Sensors)    | <------------------------ |  Docker:                     |
-+-----------------------+    apisguard/actuators    |   - mosquitto (1883)         |
-                                                    |   - mysql:8.0 (3306)         |
-+-----------------------+                           +------------------------------+
-|  Your PC (Local)      |                                  ^                ^
-|   - frontend/ (:5173) | <---- REST + Socket.io ----+     |                |
-|   - backend/  (:5000) | ---------------- MQTT (1883) ----+                |
-|                       | ---------------- MySQL (3306) --------------------+
-+-----------------------+
+Internet / Phone / Laptop Browser
+        |
+        v  (HTTP :80 / HTTPS :443)
++---------------------------------------------------------------+
+|  AWS Ubuntu EC2 Server                                        |
+|                                                               |
+|  Nginx (:80)                                                  |
+|   ├── /            -> serves frontend/dist (React SPA)        |
+|   ├── /api/*       -> proxy_pass http://127.0.0.1:5000        |
+|   └── /socket.io/* -> proxy_pass http://127.0.0.1:5000 (WS)   |
+|                                                               |
+|  Node.js + PM2 (:5000) -> backend/dist/app.js                 |
+|   ├── MySQL 8.0 (Docker, 127.0.0.1:3306)                      |
+|   └── Mosquitto (Docker, 0.0.0.0:1883  <-- ESP32 over Wi-Fi)  |
++---------------------------------------------------------------+
 ```
-
-- **AWS EC2**: Runs only `mysql` and `mosquitto` in Docker to stay comfortably inside Free Tier RAM/CPU limits.
-- **Local PC**: Runs `backend/` (Node.js/Express + Socket.io + automation rules) and `frontend/` (React dashboard).
 
 ---
 
 ## Step 1: Launch an AWS EC2 Ubuntu Instance
 
 1. Sign in to **AWS Console** -> **EC2** -> **Launch Instance**.
-2. Set the following options:
-   - **Name**: `apisguard-db-mqtt`
+2. Configure:
+   - **Name**: `apisguard-server`
    - **OS Image (AMI)**: `Ubuntu Server 24.04 LTS` (64-bit x86)
    - **Instance type**: Free-tier eligible (`t2.micro` or `t3.micro`, 1 GB RAM)
    - **Key pair**: Create new key pair -> Name: `apisguard-key` -> Format: `.pem` -> Download and save safely.
    - **Storage**: `20 GB gp3` (Free Tier includes up to 30 GB EBS).
-3. Under **Network settings (Security Group)**, configure these **Inbound Rules**:
+3. Under **Network settings (Security Group)**, add these **Inbound Rules**:
 
 | Type | Port | Source | Why |
 | :--- | :--- | :--- | :--- |
 | SSH | `22` | **My IP** | Secure SSH access from your PC only |
-| Custom TCP | `3306` | **My IP** | Lets your local `backend/` connect to MySQL without exposing DB to the world |
-| Custom TCP | `1883` | `0.0.0.0/0` (or My IP during testing) | Needed by ESP32 (over cellular/Wi-Fi) and your local `backend/` |
+| HTTP | `80` | `0.0.0.0/0` | Public web dashboard (`frontend/` + proxied `/api` & `/socket.io`) |
+| HTTPS | `443` | `0.0.0.0/0` | Optional SSL if you add a domain later |
+| Custom TCP | `1883` | `0.0.0.0/0` | MQTT connections from your ESP32 |
 
-> **Important Security Note**: Never open port `3306` to `0.0.0.0/0`. Restrict `3306` to **My IP**. If your home router IP changes later, edit that Security Group rule in AWS Console and click **My IP** again.
-
-4. Launch the instance and copy its **Public IPv4 address** (for example, `13.233.xx.xx`).
-   - *(Optional)* Under **EC2 -> Elastic IPs**, allocate an Elastic IP and associate it with this instance so the IP does not change if you stop and start EC2.
+   - **Keep port `3306` (MySQL) and `5000` (Backend) closed publicly** — Nginx and `backend/` communicate with them over `127.0.0.1` inside the EC2 server.
+4. Launch the instance, then under **EC2 -> Elastic IPs**, allocate an **Elastic IP** and associate it with this instance so your public IPv4 address never changes on reboot.
 
 ---
 
@@ -55,15 +57,15 @@ Open PowerShell on Windows in the folder containing `apisguard-key.pem`:
 ssh -i .\apisguard-key.pem ubuntu@<YOUR_AWS_PUBLIC_IP>
 ```
 
-Type `yes` if asked about the host fingerprint.
+Type `yes` if prompted about the host fingerprint.
 
-*(If Windows complains that permissions on `.pem` are too open, run `icacls .\apisguard-key.pem /inheritance:r /grant:r "$($env:USERNAME):(R)"` and retry SSH.)*
+*(If Windows complains about `.pem` permissions, run `icacls .\apisguard-key.pem /inheritance:r /grant:r "$($env:USERNAME):(R)"` and retry SSH.)*
 
 ---
 
-## Step 3: Add a 2 GB Swap File (Recommended for Free Tier 1 GB RAM)
+## Step 3: Add a 2 GB Swap File (Required for 1 GB Free Tier RAM)
 
-MySQL 8.0 can run out of memory on 1 GB RAM during startup unless swap space is available. On the Ubuntu server, run:
+MySQL 8.0 and Node.js can run out of memory on 1 GB RAM without swap space:
 
 ```bash
 sudo fallocate -l 2G /swapfile
@@ -76,9 +78,11 @@ free -h
 
 ---
 
-## Step 4: Install Docker Engine & Docker Compose
+## Step 4: Install Docker, Node.js 22, PM2 & Nginx
 
 Run on the AWS Ubuntu server:
+
+### 4.1 Install Docker & Docker Compose
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -99,25 +103,28 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-Verify installation:
+### 4.2 Install Node.js 22, PM2 & Nginx
 
 ```bash
-docker --version
-docker compose version
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs nginx
+sudo npm install -g pm2
+
+docker --version && docker compose version && node -v && nginx -v
 ```
 
 ---
 
-## Step 5: Create the ApisGuard Server Folder & Config Files
+## Step 5: Configure MySQL 8.0 & Mosquitto on EC2
 
-Create the directory structure on Ubuntu:
+Create the server workspace:
 
 ```bash
 mkdir -p ~/apisguard/mosquitto/config ~/apisguard/mosquitto/data
 cd ~/apisguard
 ```
 
-### 5.1 Create `.env` on AWS Server
+### 5.1 Create `~/apisguard/.env`
 
 Replace `<STRONG_ROOT_PASS>` and `<STRONG_DB_PASS>` with strong passwords:
 
@@ -130,9 +137,9 @@ MYSQL_PASSWORD=<STRONG_DB_PASS>
 EOF
 ```
 
-### 5.2 Create `init.sql`
+### 5.2 Create `~/apisguard/init.sql`
 
-This initializes all 6 tables (`users`, `telemetry` for DHT22, 3x DS18B20 probes, 2x IR bee counters, MPU6050, HX711 5kg weight, NEO-6M GPS, and INA219 battery metrics, `actuators` for Entrance Gate Servo & Type 3 Syrup Pump, `actuator_logs`, `alerts`, `settings`) and default seed rows matching `backend/`:
+This initializes all 6 tables (`users`, `telemetry` for `DHT22`, `3x DS18B20` probes, `2x IR` bee counters, `MPU6050`, `HX711 5kg` weight, `NEO-6M` GPS, and `INA219` battery metrics, `actuators` for Entrance Gate Servo & Type 3 Syrup Pump, `actuator_logs`, `alerts`, `settings`) and default seed rows:
 
 ```bash
 cat << 'EOF' > ~/apisguard/init.sql
@@ -222,9 +229,7 @@ ON DUPLICATE KEY UPDATE setting_key=setting_key;
 EOF
 ```
 
-### 5.3 Create `mosquitto/config/mosquitto.conf` & Password File
-
-Write `mosquitto.conf` with authentication enabled (`allow_anonymous false`):
+### 5.3 Create `mosquitto.conf` & Password File
 
 ```bash
 cat << 'EOF' > ~/apisguard/mosquitto/config/mosquitto.conf
@@ -236,25 +241,21 @@ password_file /mosquitto/config/passwd
 EOF
 ```
 
-Generate the Mosquitto password file (replace `<STRONG_MQTT_PASS>` with your chosen MQTT password):
+Generate the Mosquitto password file (replace `<STRONG_MQTT_PASS>`):
 
 ```bash
 docker run --rm -v ~/apisguard/mosquitto/config:/mosquitto/config eclipse-mosquitto:2.0 \
   mosquitto_passwd -b -c /mosquitto/config/passwd apisguard_mqtt <STRONG_MQTT_PASS>
-```
 
-Ensure Mosquitto inside the container can read/write its config and data folders:
-
-```bash
 sudo chown -R 1883:1883 ~/apisguard/mosquitto/data
 sudo chmod 644 ~/apisguard/mosquitto/config/mosquitto.conf
 sudo chmod 600 ~/apisguard/mosquitto/config/passwd
 sudo chown 1883:1883 ~/apisguard/mosquitto/config/passwd
 ```
 
-### 5.4 Create `docker-compose.yml`
+### 5.4 Create `~/apisguard/docker-compose.yml`
 
-This starts **only** `mysql` and `mosquitto`, tuned gently for Free Tier memory limits:
+MySQL binds strictly to `127.0.0.1:3306` so only the local `backend/` on EC2 can access it:
 
 ```bash
 cat << 'EOF' > ~/apisguard/docker-compose.yml
@@ -269,7 +270,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     command:
       - --innodb-buffer-pool-size=128M
       - --performance-schema=OFF
@@ -299,9 +300,7 @@ EOF
 
 ---
 
-## Step 6: Start & Verify the AWS Containers
-
-Start both services:
+## Step 6: Start & Verify MySQL and Mosquitto
 
 ```bash
 cd ~/apisguard
@@ -309,101 +308,194 @@ docker compose up -d
 docker compose ps
 ```
 
-Wait ~20 seconds for MySQL first-time initialization, then verify tables and seed rows:
+Wait ~20 seconds for MySQL initialization, then verify tables and seed rows:
 
 ```bash
 docker exec -it apisguard-mysql mysql -u apisguard_user -p apisguard -e "SHOW TABLES; SELECT * FROM actuators; SELECT * FROM settings;"
 ```
 
-Test MQTT pub/sub on the server using two SSH sessions (or subscribe briefly):
+Test MQTT pub/sub on EC2:
 
 ```bash
-# Terminal 1 (listen on all apisguard topics)
+# Terminal 1 (listen)
 docker exec -it apisguard-mosquitto mosquitto_sub -u apisguard_mqtt -P <STRONG_MQTT_PASS> -t "apisguard/#" -v
 
-# Terminal 2 (publish test message)
+# Terminal 2 (publish test)
 docker exec -it apisguard-mosquitto mosquitto_pub -u apisguard_mqtt -P <STRONG_MQTT_PASS> -t "apisguard/status" -m '{"online":true}'
 ```
 
-*(Note: If `mosquitto_passwd` warning about `0700` permissions appears in `docker logs apisguard-mosquitto`, verify `docker logs apisguard-mosquitto` shows `mosquitto version 2.0.x running` and zero fatal errors.)*
+---
+
+## Step 7: Build `frontend/` & `backend/` on Your PC and Upload via `scp`
+
+Building on your Windows PC avoids memory spikes on the 1 GB Free Tier instance.
+
+### 7.1 Build `frontend/`
+
+In `c:\project\ApisGuard\frontend\.env`, set your AWS Public IP:
+
+```env
+VITE_MAP_TILE_API_KEY=<YOUR_CARTO_TILE_KEY>
+VITE_API_BASE_URL=http://<YOUR_AWS_PUBLIC_IP>/api
+VITE_SOCKET_URL=http://<YOUR_AWS_PUBLIC_IP>
+```
+
+Build the production bundle:
+
+```powershell
+cd c:\project\ApisGuard\frontend
+npm run build
+```
+
+### 7.2 Build `backend/`
+
+```powershell
+cd c:\project\ApisGuard\backend
+npm run build
+```
+
+### 7.3 Upload Built Files to EC2
+
+From PowerShell in the folder with `apisguard-key.pem`:
+
+```powershell
+ssh -i .\apisguard-key.pem ubuntu@<YOUR_AWS_PUBLIC_IP> "mkdir -p ~/apisguard/backend ~/apisguard/frontend"
+
+scp -i .\apisguard-key.pem -r c:\project\ApisGuard\frontend\dist ubuntu@<YOUR_AWS_PUBLIC_IP>:~/apisguard/frontend/
+scp -i .\apisguard-key.pem c:\project\ApisGuard\backend\package.json c:\project\ApisGuard\backend\package-lock.json ubuntu@<YOUR_AWS_PUBLIC_IP>:~/apisguard/backend/
+scp -i .\apisguard-key.pem -r c:\project\ApisGuard\backend\dist ubuntu@<YOUR_AWS_PUBLIC_IP>:~/apisguard/backend/
+```
 
 ---
 
-## Step 7: Connect Your Local PC Backend & Frontend
+## Step 8: Configure & Start `backend/` with PM2 on EC2
 
-### 7.1 Configure Local `backend/.env`
+On the AWS Ubuntu server:
 
-On your Windows PC inside `c:\project\ApisGuard\backend\`, copy `.env.example` to `.env` and fill in your AWS server IP and passwords:
+```bash
+cd ~/apisguard/backend
+npm ci --omit=dev
+```
 
-```env
+Create `~/apisguard/backend/.env`:
+
+```bash
+cat << 'EOF' > ~/apisguard/backend/.env
 PORT=5000
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://<YOUR_AWS_PUBLIC_IP>
 
-DB_HOST=<YOUR_AWS_PUBLIC_IP>
+DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=apisguard_user
 DB_PASSWORD=<STRONG_DB_PASS>
 DB_NAME=apisguard
 
-MQTT_URL=mqtt://<YOUR_AWS_PUBLIC_IP>:1883
+MQTT_URL=mqtt://127.0.0.1:1883
 MQTT_USERNAME=apisguard_mqtt
 MQTT_PASSWORD=<STRONG_MQTT_PASS>
+EOF
 ```
 
-Start the backend locally:
+Start the backend with PM2 and enable auto-start on reboot:
 
-```powershell
-cd c:\project\ApisGuard\backend
-npm run dev
+```bash
+pm2 start dist/app.js --name apisguard-api
+pm2 save
+pm2 startup
 ```
 
-Confirm both AWS services are connected by checking:
-- Terminal output should show `[MySQL] Connected` and `[MQTT] Connected to broker`.
-- Open `http://localhost:5000/api/health` in your browser -> verify `"mysql": "connected"` and `"mqtt": "connected"`.
+*(Run the `sudo env PATH=...` command printed by `pm2 startup`.)*
 
-### 7.2 Test End-to-End with Mock Telemetry
+Verify backend health on EC2:
 
-While `npm run dev` is running in one terminal, run the included mock publisher in a second terminal:
-
-```powershell
-cd c:\project\ApisGuard\backend
-npx tsx src/mockPublisher.ts
+```bash
+curl http://127.0.0.1:5000/api/health
 ```
 
-This publishes simulated `DHT22`, `3x DS18B20` probes, `2x IR` bee traffic, `MPU6050` motion, `HX711 5kg` weight, `INA219` battery, and `NEO-6M` GPS telemetry to your AWS Mosquitto broker -> your local backend receives it, stores it in AWS MySQL, evaluates alerts/geofence/harvest rules, and streams live Socket.io updates.
-
-### 7.3 Configure & Run Local `frontend/`
-
-In `c:\project\ApisGuard\frontend\`, copy `.env.example` to `.env` and add your Google Maps API key:
-
-```env
-VITE_GOOGLE_MAPS_API_KEY=<YOUR_GOOGLE_MAPS_KEY>
-VITE_API_BASE_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-```
-
-Start the dashboard:
-
-```powershell
-cd c:\project\ApisGuard\frontend
-npm run dev
-```
-
-Open `http://localhost:5173` to verify live telemetry, Google Map geofencing, actuator controls, 3-level heat map, and logs.
+Expected: `{"status":"ok","mysql":"connected","mqtt":"connected",...}`.
 
 ---
 
-## Useful AWS Maintenance Commands
+## Step 9: Configure Nginx to Serve `frontend/` and Proxy `/api` + `/socket.io`
+
+Copy `frontend/dist` to `/var/www/apisguard`:
 
 ```bash
-# Check running containers and RAM usage
-docker compose ps
-docker stats --no-stream
+sudo mkdir -p /var/www/apisguard
+sudo cp -r ~/apisguard/frontend/dist/* /var/www/apisguard/
+sudo chown -R www-data:www-data /var/www/apisguard
+```
 
-# View logs
-docker compose logs -f mysql
-docker compose logs -f mosquitto
+Create `/etc/nginx/sites-available/apisguard`:
 
-# Restart after config edits
-docker compose restart
+```bash
+sudo tee /etc/nginx/sites-available/apisguard > /dev/null << 'EOF'
+server {
+    listen 80;
+    server_name _;
+
+    root /var/www/apisguard;
+    index index.html;
+
+    # React Router SPA fallback (/controls, /charts, /logs)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Node.js REST API
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Socket.io WebSocket upgrade
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:5000/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+EOF
+```
+
+Enable the site and restart Nginx:
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/apisguard /etc/nginx/sites-enabled/apisguard
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+---
+
+## Step 10: Verify Live Public Access
+
+1. Open `http://<YOUR_AWS_PUBLIC_IP>` from any browser or phone.
+2. Check `http://<YOUR_AWS_PUBLIC_IP>/api/health` -> `"mysql": "connected"`, `"mqtt": "connected"`.
+3. Test all 4 pages (`/`, `/controls`, `/charts`, `/logs`) and refresh `/charts` directly to verify Nginx SPA routing.
+4. Point your ESP32 MQTT client to `<YOUR_AWS_PUBLIC_IP>:1883` using `apisguard_mqtt` + `<STRONG_MQTT_PASS>`.
+
+---
+
+## Useful Maintenance & Redeploy Commands
+
+```bash
+# On EC2: check Docker, PM2, and memory usage
+docker compose -f ~/apisguard/docker-compose.yml ps
+pm2 status
+pm2 logs apisguard-api --lines 50
+free -h
+
+# After frontend code updates (build on PC -> scp -> copy)
+sudo cp -r ~/apisguard/frontend/dist/* /var/www/apisguard/
+
+# After backend code updates (build on PC -> scp -> restart)
+pm2 restart apisguard-api
 ```
