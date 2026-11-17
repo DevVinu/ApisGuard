@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import type { HistoricalPoint, ThermalProbes } from '../types/telemetry';
 import { ClimateLineChart } from './ClimateLineChart';
 import { HiveHeatMap2D } from './HiveHeatMap2D';
+import { InkFrame } from './InkFrame';
 import { WeightAreaChart } from './WeightAreaChart';
 
 interface AnalyticsChartsProps {
@@ -23,21 +24,23 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
   const [activeTab, setActiveTab] = useState<ChartTab>('temp-humidity');
 
   return (
-    <section className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-4 transition-colors">
+    <section className="relative isolate ll-paper p-4 space-y-4 transition-colors">
+      <InkFrame seed={410} strokeWidth={1.8} doublePass className="text-[var(--ll-ink)]" />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
-          <Icon icon="lucide:trending-up" className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+        <h2 className="font-hand font-bold text-[var(--ll-ink)] flex items-center gap-2 text-lg sm:text-xl">
+          <Icon icon="lucide:trending-up" className="w-4 h-4 text-[var(--ll-marker)]" />
           24-Hour Trends &amp; Thermal Map
         </h2>
 
-        <div className="inline-flex flex-wrap rounded-xl bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 p-1 text-xs">
+        <div className="inline-flex flex-wrap gap-1 rounded-lg bg-[var(--ll-paper-shade)] p-1 text-xs border border-[var(--ll-pencil-mark)]">
           <button
             type="button"
             onClick={() => setActiveTab('temp-humidity')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-colors ${
               activeTab === 'temp-humidity'
-                ? 'bg-white text-emerald-600 shadow-sm dark:shadow-none dark:bg-zinc-900 dark:text-emerald-400'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'bg-[var(--ll-hi)] text-[var(--ll-ink)]'
+                : 'text-[var(--ll-ink-muted)] hover:text-[var(--ll-ink)]'
             }`}
           >
             <Icon icon="lucide:thermometer" className="w-3.5 h-3.5" />
@@ -46,10 +49,10 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('heatmap-2d')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-colors ${
               activeTab === 'heatmap-2d'
-                ? 'bg-white text-amber-600 shadow-sm dark:shadow-none dark:bg-zinc-900 dark:text-amber-400'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'bg-[var(--ll-hi)] text-[var(--ll-ink)]'
+                : 'text-[var(--ll-ink-muted)] hover:text-[var(--ll-ink)]'
             }`}
           >
             <Icon icon="lucide:flame" className="w-3.5 h-3.5" />
@@ -58,10 +61,10 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('weight')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-colors ${
               activeTab === 'weight'
-                ? 'bg-white text-amber-600 shadow-sm dark:shadow-none dark:bg-zinc-900 dark:text-amber-400'
-                : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'bg-[var(--ll-hi)] text-[var(--ll-ink)]'
+                : 'text-[var(--ll-ink-muted)] hover:text-[var(--ll-ink)]'
             }`}
           >
             <Icon icon="lucide:scale" className="w-3.5 h-3.5" />
@@ -71,7 +74,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
       </div>
 
       {isLoading ? (
-        <div className="h-72 rounded-xl bg-zinc-100 dark:bg-zinc-900 animate-pulse flex items-center justify-center text-xs text-zinc-500">
+        <div className="h-72 rounded-xl bg-[var(--ll-paper-shade)] animate-pulse flex items-center justify-center text-xs text-[var(--ll-ink-muted)]">
           Loading 24-hour sensor trends...
         </div>
       ) : activeTab === 'temp-humidity' ? (

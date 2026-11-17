@@ -25,7 +25,7 @@ export function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-100 flex flex-col transition-colors">
+      <div className="min-h-screen ll-desk text-[var(--ll-ink)] flex flex-col transition-colors">
         <Navbar
           device={telemetry.device}
           activeAlertsCount={alerts.length}

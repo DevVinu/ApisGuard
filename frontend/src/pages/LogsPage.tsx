@@ -13,10 +13,12 @@ export const LogsPage: React.FC<LogsPageProps> = ({ alerts, logs, onDismissAlert
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-base sm:text-lg font-semibold text-zinc-900 dark:text-white">
+        <h1 className="font-script text-2xl sm:text-[1.7rem] font-bold text-[var(--ll-ink)] leading-none">
           Alerts &amp; Logs
         </h1>
-        <span className="text-xs text-zinc-500">{logs.length} entries</span>
+        <span className="text-xs text-[var(--ll-ink-muted)] font-medium">
+          {logs.length} entries
+        </span>
       </div>
 
       <AlertBanner alerts={alerts} onDismiss={onDismissAlert} />

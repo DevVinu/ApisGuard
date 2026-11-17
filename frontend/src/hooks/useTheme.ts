@@ -17,7 +17,7 @@ export function useTheme() {
 
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
-      metaTheme.setAttribute('content', theme === 'dark' ? '#000000' : '#fafafa');
+      metaTheme.setAttribute('content', theme === 'dark' ? '#181a1f' : '#a8c8bb');
     }
 
     localStorage.setItem(STORAGE_KEY, theme);
