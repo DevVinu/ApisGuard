@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { INITIAL_ACTUATORS, INITIAL_LOGS } from '../data/mockHiveData';
+import { INITIAL_ACTUATORS } from '../data/mockHiveData';
 import { fetchActuators, sendActuatorCommand } from '../services/api';
 import { getSocket } from '../services/socket';
 import type {
@@ -18,7 +18,7 @@ const GATE_ANGLES: Record<GatePosition, number> = {
 
 export function useActuatorControl() {
   const [actuators, setActuators] = useState<ActuatorState>(INITIAL_ACTUATORS);
-  const [logs, setLogs] = useState<ActivityLogEntry[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   useEffect(() => {

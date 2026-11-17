@@ -27,7 +27,7 @@ export function App() {
     <BrowserRouter>
       <div className="min-h-screen ll-desk text-[var(--ll-ink)] flex flex-col transition-colors">
         <Navbar
-          device={telemetry.device}
+          device={telemetry?.device ?? null}
           activeAlertsCount={alerts.length}
           isBackendConnected={isBackendConnected}
           theme={theme}
@@ -67,7 +67,7 @@ export function App() {
               element={
                 <ChartsPage
                   history={history}
-                  thermalProbes={telemetry.metrics.thermalProbes}
+                  thermalProbes={telemetry?.metrics.thermalProbes ?? null}
                   isLoading={isHistoryLoading}
                   theme={theme}
                 />

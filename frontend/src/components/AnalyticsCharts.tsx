@@ -8,7 +8,7 @@ import { WeightAreaChart } from './WeightAreaChart';
 
 interface AnalyticsChartsProps {
   history: HistoricalPoint[];
-  thermalProbes: ThermalProbes;
+  thermalProbes: ThermalProbes | null;
   isLoading: boolean;
   theme: 'dark' | 'light';
 }
@@ -77,10 +77,21 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
         <div className="h-72 rounded-xl bg-[var(--ll-paper-shade)] animate-pulse flex items-center justify-center text-xs text-[var(--ll-ink-muted)]">
           Loading 24-hour sensor trends...
         </div>
+      ) : history.length === 0 && !thermalProbes ? (
+        <div className="h-72 rounded-xl bg-[var(--ll-slip)] border border-dashed border-[var(--ll-pencil-mark)] flex flex-col items-center justify-center text-center p-4 gap-1.5">
+          <Icon icon="lucide:bar-chart-2" className="w-6 h-6 text-[var(--ll-ink-muted)]" />
+          <div className="font-hand text-base font-bold text-[var(--ll-ink)]">No Chart Data Yet</div>
+          <p className="text-xs text-[var(--ll-ink-muted)]">
+            Charts and the 2D heat map will appear as soon as the ESP32 sends live telemetry.
+          </p>
+        </div>
       ) : activeTab === 'temp-humidity' ? (
         <ClimateLineChart data={history} theme={theme} />
       ) : activeTab === 'heatmap-2d' ? (
-        <HiveHeatMap2D currentProbes={thermalProbes} history={history} />
+        <HiveHeatMap2D
+          currentProbes={thermalProbes ?? { top: 0, middle: 0, bottom: 0 }}
+          history={history}
+        />
       ) : (
         <WeightAreaChart data={history} theme={theme} />
       )}

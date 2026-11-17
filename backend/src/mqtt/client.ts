@@ -7,6 +7,7 @@ import type { GatePosition, IncomingTelemetryMqtt } from '../types/index.js';
 
 let client: MqttClient | null = null;
 let mqttConnected = false;
+let loggedOfflineWarning = false;
 
 export function isMqttConnected(): boolean {
   return mqttConnected;
@@ -30,6 +31,7 @@ export function initMqtt(io: SocketIOServer): MqttClient {
 
   client.on('connect', () => {
     mqttConnected = true;
+    loggedOfflineWarning = false;
     console.log(`[MQTT] Connected to ${env.mqtt.url}`);
     client?.subscribe([
       'apisguard/telemetry',
@@ -45,7 +47,10 @@ export function initMqtt(io: SocketIOServer): MqttClient {
 
   client.on('error', (err) => {
     mqttConnected = false;
-    console.warn(`[MQTT] Connection warning: ${err.message}`);
+    if (!loggedOfflineWarning) {
+      loggedOfflineWarning = true;
+      console.warn(`[MQTT] Not connected (${err.message}). HTTP ingest still active.`);
+    }
   });
 
   client.on('message', async (topic, rawBuffer) => {

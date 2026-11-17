@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkDatabaseConnection } from '../db/mysql.js';
 import { isMqttConnected, publishMqtt } from '../mqtt/client.js';
+import { processIncomingTelemetry } from '../services/automation.js';
 import {
   getActiveAlerts,
   getActuatorsState,
@@ -13,7 +14,7 @@ import {
   resolveAlertById,
   updateActuatorInDb,
 } from '../services/store.js';
-import type { ActuatorCommandPayload } from '../types/index.js';
+import type { ActuatorCommandPayload, IncomingTelemetryMqtt } from '../types/index.js';
 
 export function createApiRouter(io: SocketIOServer): Router {
   const router = Router();
@@ -41,6 +42,20 @@ export function createApiRouter(io: SocketIOServer): Router {
     const hours = Math.min(168, Math.max(1, Number(req.query.hours || 24)));
     const points = await getHistoricalTelemetry(hours);
     res.json(points);
+  });
+
+  // Direct HTTP telemetry ingestion for local testing without an MQTT broker
+  router.post('/telemetry/ingest', async (req, res) => {
+    const payload = req.body as IncomingTelemetryMqtt;
+    if (!payload || !payload.metrics || !payload.location || !payload.device) {
+      res.status(400).json({ message: 'Invalid telemetry payload' });
+      return;
+    }
+    await processIncomingTelemetry(payload, io, publishMqtt);
+    console.log(
+      `[HTTP] Telemetry ingested: ${payload.metrics.temperature}°C, ${payload.metrics.humidity}%, IN/OUT=${payload.metrics.beesIn ?? 0}/${payload.metrics.beesOut ?? 0}`
+    );
+    res.json({ ok: true });
   });
 
   router.get('/actuators', async (_req, res) => {

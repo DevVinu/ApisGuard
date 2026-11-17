@@ -8,7 +8,7 @@ import { getWifiLabel } from '../utils/formatters';
 import { InkFrame } from './InkFrame';
 
 interface NavbarProps {
-  device: DeviceStatus;
+  device: DeviceStatus | null;
   activeAlertsCount: number;
   isBackendConnected: boolean;
   theme: ThemeMode;
@@ -67,18 +67,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-1.5 text-[11px]">
                 <span
                   className={`inline-flex items-center gap-1 font-semibold ${
-                    device.online ? 'text-[var(--ll-green)]' : 'text-[var(--ll-red)]'
+                    device?.online ? 'text-[var(--ll-green)]' : 'text-[var(--ll-red)]'
                   }`}
                 >
                   <Icon
-                    icon={device.online ? 'lucide:radio' : 'lucide:wifi-off'}
+                    icon={device?.online ? 'lucide:radio' : 'lucide:wifi-off'}
                     className="w-3 h-3"
                   />
-                  {device.online ? 'Online' : 'Offline'}
+                  {device?.online ? 'Online' : 'No Data'}
                 </span>
                 <span className="text-[var(--ll-pencil-mark)]">/</span>
                 <span className="text-[var(--ll-ink-muted)]">
-                  {isBackendConnected ? 'Live' : 'Preview'}
+                  {isBackendConnected ? 'Live' : 'Offline'}
                 </span>
               </div>
             </div>
@@ -116,25 +116,39 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <div
               className="relative isolate inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--ll-slip)] text-[var(--ll-ink)] text-xs font-semibold"
-              title={`INA219: ${device.batteryVoltage.toFixed(2)} V · ${device.batteryCurrentMa.toFixed(0)} mA`}
+              title={
+                device
+                  ? `INA219: ${device.batteryVoltage.toFixed(2)} V · ${device.batteryCurrentMa.toFixed(0)} mA`
+                  : 'No battery data yet'
+              }
             >
               <InkFrame seed={101} strokeWidth={1.3} className="text-[var(--ll-pencil-mark)]" />
               <Icon
-                icon={device.batteryPct > 25 ? 'lucide:battery-charging' : 'lucide:battery-warning'}
+                icon={
+                  !device || device.batteryPct > 25
+                    ? 'lucide:battery-charging'
+                    : 'lucide:battery-warning'
+                }
                 className={`w-4 h-4 ${
-                  device.batteryPct > 25 ? 'text-[var(--ll-green)]' : 'text-[var(--ll-red)]'
+                  !device
+                    ? 'text-[var(--ll-ink-muted)]'
+                    : device.batteryPct > 25
+                      ? 'text-[var(--ll-green)]'
+                      : 'text-[var(--ll-red)]'
                 }`}
               />
-              <span>{device.batteryPct}%</span>
+              <span>{device ? `${device.batteryPct}%` : '--%'}</span>
             </div>
 
             <div
               className="relative isolate hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--ll-slip)] text-[var(--ll-ink)] text-xs font-semibold"
-              title={`Wi-Fi Signal: ${getWifiLabel(device.wifiRssi)}`}
+              title={
+                device ? `Wi-Fi Signal: ${getWifiLabel(device.wifiRssi)}` : 'No signal data yet'
+              }
             >
               <InkFrame seed={102} strokeWidth={1.3} className="text-[var(--ll-pencil-mark)]" />
               <Icon icon="lucide:wifi" className="w-3.5 h-3.5 text-[var(--ll-ink-muted)]" />
-              <span>{device.wifiRssi} dBm</span>
+              <span>{device ? `${device.wifiRssi} dBm` : '-- dBm'}</span>
             </div>
 
             {activeAlertsCount > 0 && (

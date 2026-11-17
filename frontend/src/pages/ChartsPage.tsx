@@ -5,7 +5,7 @@ import type { HistoricalPoint, ThermalProbes } from '../types/telemetry';
 
 interface ChartsPageProps {
   history: HistoricalPoint[];
-  thermalProbes: ThermalProbes;
+  thermalProbes: ThermalProbes | null;
   isLoading: boolean;
   theme: 'dark' | 'light';
 }
@@ -41,8 +41,9 @@ export const ChartsPage: React.FC<ChartsPageProps> = ({
           <InkFrame seed={402} strokeWidth={1.6} className="text-[var(--ll-ink)]" />
           <div className="text-[var(--ll-ink-muted)]">3-Level Probes (Top / Mid / Bot)</div>
           <div className="text-sm font-bold text-[var(--ll-ink)]">
-            {thermalProbes.top.toFixed(1)}° / {thermalProbes.middle.toFixed(1)}° /{' '}
-            {thermalProbes.bottom.toFixed(1)}°C
+            {thermalProbes
+              ? `${thermalProbes.top.toFixed(1)}° / ${thermalProbes.middle.toFixed(1)}° / ${thermalProbes.bottom.toFixed(1)}°C`
+              : 'No data'}
           </div>
         </div>
         <div className="relative isolate ll-card p-3.5 space-y-1 transition-colors">

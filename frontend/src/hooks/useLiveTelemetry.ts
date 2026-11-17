@@ -1,30 +1,30 @@
 import { useEffect, useState } from 'react';
-import { INITIAL_ALERTS, INITIAL_TELEMETRY } from '../data/mockHiveData';
 import { fetchAlerts, fetchLatestTelemetry, resolveAlert } from '../services/api';
 import { getSocket } from '../services/socket';
 import type { HiveAlert, LiveTelemetry } from '../types/telemetry';
 
 export function useLiveTelemetry() {
-  const [telemetry, setTelemetry] = useState<LiveTelemetry>(INITIAL_TELEMETRY);
-  const [alerts, setAlerts] = useState<HiveAlert[]>(INITIAL_ALERTS);
+  const [telemetry, setTelemetry] = useState<LiveTelemetry | null>(null);
+  const [alerts, setAlerts] = useState<HiveAlert[]>([]);
   const [isBackendConnected, setIsBackendConnected] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadInitial() {
-      try {
-        const [latest, activeAlerts] = await Promise.all([
-          fetchLatestTelemetry(),
-          fetchAlerts(),
-        ]);
-        if (!mounted) return;
-        setTelemetry(latest);
-        setAlerts(activeAlerts);
+      const [latestRes, alertsRes] = await Promise.allSettled([
+        fetchLatestTelemetry(),
+        fetchAlerts(),
+      ]);
+      if (!mounted) return;
+
+      if (latestRes.status === 'fulfilled') {
+        setTelemetry(latestRes.value);
         setIsBackendConnected(true);
-      } catch {
-        // Backend not running yet; keep demo telemetry active so the UI remains usable.
-        if (mounted) setIsBackendConnected(false);
+      }
+      if (alertsRes.status === 'fulfilled') {
+        setAlerts(alertsRes.value);
+        setIsBackendConnected(true);
       }
     }
 
@@ -58,7 +58,7 @@ export function useLiveTelemetry() {
     try {
       await resolveAlert(alertId);
     } catch {
-      // Local dismissal still applies in offline/preview mode.
+      // Ignore if backend is offline.
     }
   };
 

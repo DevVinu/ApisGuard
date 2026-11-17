@@ -9,7 +9,7 @@ import type { ActuatorState } from '../types/actuator';
 import type { HiveAlert, LiveTelemetry } from '../types/telemetry';
 
 interface OverviewPageProps {
-  telemetry: LiveTelemetry;
+  telemetry: LiveTelemetry | null;
   actuators: ActuatorState;
   alerts: HiveAlert[];
   homeLat: number;
@@ -41,17 +41,32 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
       <AlertBanner alerts={alerts} onDismiss={onDismissAlert} />
 
-      <HiveGoogleMap
-        latitude={telemetry.location.latitude}
-        longitude={telemetry.location.longitude}
-        homeLat={homeLat}
-        homeLng={homeLng}
-        geofenceRadiusMeters={geofenceRadiusMeters}
-        satellites={telemetry.location.satellites}
-        altitudeMeters={telemetry.location.altitudeMeters}
-      />
+      {telemetry ? (
+        <>
+          <HiveGoogleMap
+            latitude={telemetry.location.latitude}
+            longitude={telemetry.location.longitude}
+            homeLat={homeLat}
+            homeLng={homeLng}
+            geofenceRadiusMeters={geofenceRadiusMeters}
+            satellites={telemetry.location.satellites}
+            altitudeMeters={telemetry.location.altitudeMeters}
+          />
 
-      <MetricCardsGrid metrics={telemetry.metrics} />
+          <MetricCardsGrid metrics={telemetry.metrics} />
+        </>
+      ) : (
+        <div className="relative isolate ll-paper p-8 flex flex-col items-center justify-center text-center gap-2.5">
+          <InkFrame seed={19} strokeWidth={1.7} doublePass className="text-[var(--ll-ink)]" />
+          <Icon icon="lucide:radio" className="w-7 h-7 text-[var(--ll-marker)]" />
+          <h2 className="font-hand text-xl font-bold text-[var(--ll-ink)]">No Sensor Data Yet</h2>
+          <p className="text-xs text-[var(--ll-ink-muted)] max-w-md">
+            Waiting for live readings from your ESP32. Once the ESP32 posts to{' '}
+            <code className="px-1 py-0.5 bg-[var(--ll-paper-shade)] rounded">/api/telemetry/ingest</code>{' '}
+            or MQTT, the GPS map and sensor cards will appear automatically.
+          </p>
+        </div>
+      )}
 
       {/* Simple Quick-Status Navigation Tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
